@@ -6,6 +6,8 @@ from ._core import _StreamingError, _StreamingTimeout
 from httpx._transports.base import BaseTransport
 from httpx import Request, Response
 
+from ._core import Request as PyodideRequest
+
 class PyodideHTTPTransport(BaseTransport):
     # here we need to only implement handle_request function
     # as parent class has already implemented the rest
@@ -40,5 +42,29 @@ class PyodideHTTPTransport(BaseTransport):
 
         Returns a `Response` instance.
         """
-        pass
+        # None handling for stream already done in httpx.Request
+        stream = request.stream
+        pyodide_request = PyodideRequest(request.method, request.url)
+
+        # timeout is not present in httpx.Request class
+        pyodide_request.timeout = 0
+
+        if request.body:
+            pyodide_request.set_body(request.body)
+        try:
+            resp = send(pyodide_request, stream)
+        except _StreamingTimeout:
+            from httpx import ConnectTimeout
+
+            # should the passed argument here be the pyodide_request or request arg of the function
+            # ConnectTimeout from httpx takes the Request class object from the httpx
+            # otherwise on ._core we would need to define another Request class for Pyodide as timeout is not present in httpx.Request class
+            
+            raise ConnectTimeout(request=request)
+            raise ConnectTimeout(request=pyodide_request)
+        except _StreamingError:
+            from httpx import ConnectionError
+
+            raise ConnectionError(request=pyodide_request)
+
 
