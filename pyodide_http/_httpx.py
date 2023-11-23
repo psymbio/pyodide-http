@@ -4,19 +4,11 @@ from ._core import _StreamingError, _StreamingTimeout
 
 # in requests we override BaseAdapter instead of HTTPAdpater
 from httpx._transports.base import BaseTransport
+from httpx import Request, Response
 
 class PyodideHTTPTransport(BaseTransport):
-    def __enter__(self: T) -> T:
-        return self
-
-    def __exit__(
-        self,
-        exc_type: typing.Optional[typing.Type[BaseException]] = None,
-        exc_value: typing.Optional[BaseException] = None,
-        traceback: typing.Optional[TracebackType] = None,
-    ) -> None:
-        self.close()
-
+    # here we need to only implement handle_request function
+    # as parent class has already implemented the rest
     def handle_request(self, request: Request) -> Response:
         """
         Send a single HTTP request and return a response.
@@ -48,11 +40,5 @@ class PyodideHTTPTransport(BaseTransport):
 
         Returns a `Response` instance.
         """
-        raise NotImplementedError(
-            "The 'handle_request' method must be implemented."
-        )  # pragma: no cover
-
-    def close(self) -> None:
         pass
-
 
