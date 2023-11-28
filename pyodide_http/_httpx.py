@@ -5,6 +5,8 @@ from ._core import _StreamingError, _StreamingTimeout
 # in requests we override BaseAdapter instead of HTTPAdpater
 from httpx._transports.base import BaseTransport
 from httpx import Request, Response
+from httpx._utils import obfuscate_sensitive_headers
+from requests.utils import get_encoding_from_headers, CaseInsensitiveDict
 
 from ._core import Request as PyodideRequest
 
@@ -59,12 +61,40 @@ class PyodideHTTPTransport(BaseTransport):
             # should the passed argument here be the pyodide_request or request arg of the function
             # ConnectTimeout from httpx takes the Request class object from the httpx
             # otherwise on ._core we would need to define another Request class for Pyodide as timeout is not present in httpx.Request class
-            
-            raise ConnectTimeout(request=request)
             raise ConnectTimeout(request=pyodide_request)
         except _StreamingError:
             from httpx import ConnectionError
-
             raise ConnectionError(request=pyodide_request)
+        import httpx
+        response = httpx.Response()
+        # Fallback to None if there's no status_code, for whatever reason.
+        response.status_code = getattr(resp, "status_code", None)
+        # Make headers case-insensitive.
+        response.headers = obfuscate_sensitive_headers(resp.headers)
+        # response.headers = CaseInsensitiveDict(resp.headers)
+        
+        # Set encoding.
+        response.default_encoding = "utf-8"
+        if isinstance(resp.body, IOBase):
+            # streaming response
+            response.raw = resp.body
+        else:
+            # non-streaming response, make it look like a stream
+            response.raw = BytesIO(resp.body)
 
+        response.request = request
+        return response
 
+def patch():
+    global _IS_PATCHED
+    """
+        Patch the requests Session. Will add a new adapter for the http and https protocols.
+
+        Keep in mind the browser is stricter with things like CORS and this can cause some
+        requests to fail that work with the regular Adapter.
+    """
+    if _IS_PATCHED:
+        return
+
+    import httpx
+    # not sure on how to patch
