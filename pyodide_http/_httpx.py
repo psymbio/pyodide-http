@@ -97,4 +97,12 @@ def patch():
         return
 
     import httpx
-    # not sure on how to patch
+    httpx.AsyncClient._old_init = httpx.AsyncClient.__init__
+
+    def new_init(self, *args, **kwargs):
+        self._old_init(*args, **kwargs)
+        self._client._transports[b"http"] = PyodideHTTPTransport()
+        self._client._transports[b"https"] = PyodideHTTPTransport()
+
+    httpx.AsyncClient.__init__ = new_init
+    _IS_PATCHED = True
